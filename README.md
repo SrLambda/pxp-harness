@@ -588,3 +588,11 @@ conectarte por SSH a Debian, entrar en el proyecto y
 usar la misma CLI. Nunca guardes claves, tokens ni
 datos personales en los artefactos públicos. La
 separación de usuarios UNIX queda fuera de este MVP.
+
+## Diagnóstico de sandbox en VM
+
+Antes de implementar permisos efectivos por rol,
+ejecuta la [prueba local de sandbox](docs/sandbox-test.md).
+No llama a modelos ni modifica configuración global.
+Un resultado básico PASS no valida todavía perfiles
+por rol ni protección de su política.
