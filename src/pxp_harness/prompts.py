@@ -186,3 +186,32 @@ def load_prompt(
     path = _resolve(root, data[mode])
     _validate_file(path)
     return path
+
+
+def editable_prompt(
+    root: Path, mode: str
+) -> tuple[Path, bool]:
+    """Resuelve un archivo o un borrador."""
+    _mode(mode)
+    data = _read(root)
+    if mode in data:
+        return _resolve(root, data[mode]), False
+    directory = root / ".pxp/prompts"
+    if directory.is_symlink():
+        raise ProjectError(
+            "Prompt directory cannot "
+            "be a symlink."
+        )
+    path = directory / f"{mode}.md"
+    try:
+        directory.mkdir(exist_ok=True)
+        try:
+            with path.open("x", encoding="utf-8"):
+                pass
+        except FileExistsError:
+            pass
+    except OSError:
+        raise ProjectError(
+            "Cannot create local prompt draft."
+        ) from None
+    return _resolve(root, str(path)), True

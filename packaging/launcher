@@ -1,0 +1,12 @@
+#!/usr/bin/python3
+"""Inicia PXP desde su ubicación privada."""
+
+import runpy
+import sys
+from pathlib import Path
+
+prefix = Path(__file__).resolve().parents[1]
+sys.path.insert(
+    0, str(prefix / 'share/pxp-harness')
+)
+runpy.run_module('pxp_harness', run_name='__main__')

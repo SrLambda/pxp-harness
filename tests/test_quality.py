@@ -10,7 +10,11 @@ class QualityTests(unittest.TestCase):
     def test_python_lines_fit(self):
         """Limita todo Python a 50 columnas."""
         root = Path(__file__).resolve().parents[1]
-        for directory in ("src", "tests"):
+        for directory in (
+            "src",
+            "tests",
+            "tools",
+        ):
             for path in (root / directory).rglob(
                 "*.py"
             ):

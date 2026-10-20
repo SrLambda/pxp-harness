@@ -1,0 +1,29 @@
+pkgname=pxp-harness
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc='Project-local context and modes for Codex CLI'
+arch=('any')
+url='https://github.com/SrLambda/pxp-harness'
+license=('MIT')
+depends=('python>=3.10')
+makedepends=('python>=3.11')
+checkdepends=('git')
+optdepends=(
+  'git: initialize project repositories'
+  'neovim: edit and view project prompts'
+  'ruff: check and format Python coding standards'
+)
+options=('!debug' '!strip')
+source=("pxp-harness-$pkgver-source.tar.gz")
+sha256sums=('@SHA256@')
+PACKAGER='PXP Harness local builds'
+
+check() {
+  cd "$srcdir/pxp-harness-$pkgver"
+  PYTHONPATH=src python -m unittest discover -s tests -v
+}
+
+package() {
+  cd "$srcdir/pxp-harness-$pkgver"
+  python tools/package.py stage --destdir "$pkgdir"
+}

@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
+from .editor import open_prompt
 from .project import (
     MODES,
     ProjectError,
@@ -22,6 +24,10 @@ from .prompts import (
     clear_prompt,
     load_prompt,
     set_prompt,
+)
+from .repository import (
+    ensure_git,
+    find_project_root,
 )
 from .standards import (
     configure,
@@ -42,13 +48,18 @@ def _parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(
         dest="command", required=True
     )
-    subparsers.add_parser(
+    init_parser = subparsers.add_parser(
         "init",
         help=(
             "initialize PXP config and"
             " artifact files in this "
             "directory"
         ),
+    )
+    init_parser.add_argument(
+        "--git",
+        action="store_true",
+        help="initialize Git if needed",
     )
     mode_parser = subparsers.add_parser(
         "mode",
@@ -108,6 +119,9 @@ def _parser() -> argparse.ArgumentParser:
     select = actions.add_parser("set")
     select.add_argument("mode_id")
     select.add_argument("path")
+    for action in ("edit", "view"):
+        editor = actions.add_parser(action)
+        editor.add_argument("mode_id", nargs="?")
     clear = actions.add_parser("clear")
     clear.add_argument("mode_id")
     return parser
@@ -191,6 +205,11 @@ def _chat(root: Path, prompt: str) -> int:
         completed = subprocess.run(
             command,
             cwd=root,
+            env={
+                **os.environ,
+                "VISUAL": "nvim",
+                "EDITOR": "nvim",
+            },
             check=False,
         )
     except OSError as exc:
@@ -209,9 +228,13 @@ def main(
 ) -> int:
     """Ejecuta la operación solicitada."""
     args = _parser().parse_args(argv)
-    root = (cwd or Path.cwd()).resolve()
     try:
+        root = find_project_root(
+            (cwd or Path.cwd()).resolve()
+        )
         if args.command == "init":
+            if args.git:
+                ensure_git(root)
             created = initialize(root)
             print(
                 f"PXP initialized in {root}"
@@ -239,6 +262,24 @@ def main(
                 )
             return 0
         if args.command == "prompt":
+            if args.prompt_action in {
+                "edit",
+                "view",
+            }:
+                config = load_config(root)
+                mode = args.mode_id
+                if mode is None:
+                    mode = config.get(
+                        "active_mode", "plan"
+                    )
+                return open_prompt(
+                    root,
+                    mode,
+                    readonly=(
+                        args.prompt_action
+                        == "view"
+                    ),
+                )
             if args.prompt_action == "set":
                 set_prompt(
                     root, args.mode_id, args.path

@@ -1,0 +1,7 @@
+Aviso de empaquetado local de PXP Harness
+
+pyproject.toml declara la licencia MIT.
+El código fuente no incluye el aviso completo de licencia y copyright.
+Este empaquetado no otorga otra licencia ni atribuye derechos de autor.
+Antes de redistribuir, debe resolverse el aviso ausente en el proyecto.
+No se incluyen credenciales de Codex, prompts privados ni configuración global.

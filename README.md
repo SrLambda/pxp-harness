@@ -26,17 +26,159 @@ estándar. El extra `dev` instala Ruff 0.16.4; `init`,
 Instala y autentica Codex por separado: PXP utiliza el
 programa `codex` disponible en `PATH`.
 
+## Chat en Codex y texto en NeoVim
+
+`pxp chat` abre la **interfaz interactiva de terminal
+(TUI) de Codex**. No es un chat propio de PXP ni usa
+`codex exec`: invoca `codex` con el contexto inicial y
+mantiene conectados teclado, pantalla y salida de
+error del terminal.
+
+```bash
+pxp prompt edit plan
+pxp prompt view plan
+pxp chat "Revisa los requisitos"
+```
+
+Para editar o consultar el modo activo, omite `plan`.
+`edit` abre NeoVim con tu configuración habitual. Si
+no hay archivo asociado, prepara un borrador vacío en
+`.pxp/prompts/<mode-id>.md` sin sobrescribir otro
+archivo. Escribe tus instrucciones y guarda con
+`:wq`: solo después de una salida correcta y texto
+válido se activa como base del modo.
+
+Si sales sin guardar un borrador nuevo (`:q!`), el
+archivo vacío queda sin asociar y el comando indica
+que no es válido. Si NeoVim falla, el borrador también
+se conserva sin activar. Repite `edit` para continuar.
+Un borrador anterior nunca se sobrescribe al abrirlo.
+Para un archivo ya asociado se edita el original;
+`:q!` descarta solo tus cambios no guardados. Si
+eliminas su contenido y lo guardas, la validación
+falla y `chat` no lo utilizará hasta que lo repares.
+`edit` permite reparar un archivo asociado vacío.
+
+`view` exige una asociación válida y abre NeoVim con
+`--clean -R -M -n -i NONE`: sin configuración/plugins,
+sin modificaciones del buffer, sin swap ni ShaDa.
+También desactiva el archivo de log de esa vista.
+No cambia contenido ni asociaciones por sí mismo.
+Es prevención de escritura accidental, **no** una
+frontera de seguridad frente a comandos manuales del
+usuario. Puedes salir con `:q`.
+
+Ambas acciones requieren `nvim` en `PATH`, mantienen
+los archivos dentro del proyecto y rechazan enlaces
+simbólicos. No usan shell y las rutas con espacios se
+pasan como un solo argumento. Si falta NeoVim, PXP
+indica cómo resolverlo sin crear borradores.
+
+Dentro de la TUI de Codex, `Ctrl+G` abre NeoVim para
+redactar una petición larga; guarda y cierra para
+volver al compositor antes de enviarla. PXP establece
+`VISUAL=nvim` y `EDITOR=nvim` solo en el proceso hijo
+de Codex: no modifica tu shell ni configuración global.
+Esto edita la **petición de usuario**, no el archivo
+de instrucciones base. Este último se edita con
+`pxp prompt edit`; sus cambios se cargan en el próximo
+`pxp chat`, no en una sesión ya abierta.
+
+Para otros textos locales, como los requisitos, puedes
+usar directamente `nvim .pxp/artifacts/requirements.md`.
+No se requiere otra interfaz gráfica. Referencias:
+[TUI y editor de Codex](https://learn.chatgpt.com/docs/cli-customization),
+[opciones de NeoVim](https://neovim.io/doc/user/starting.html).
+
+## Crear un proyecto con Git
+
+Desde una carpeta nueva, fuera de otro repositorio:
+
+```bash
+mkdir mi-proyecto
+cd mi-proyecto
+pxp init --git
+pxp mode plan
+```
+
+`--git` comprueba si existe un repositorio de trabajo.
+Si no existe, ejecuta `git init` local y después crea
+la configuración PXP. Si ya existe, lo reutiliza sin
+reinicializarlo: conserva historia, índice, ramas,
+remotos y configuración. No crea commits, no configura
+remotos, no autentica, no clona ni publica en GitHub.
+Git decide la rama inicial con tu configuración normal.
+
+El ejecutable `git` solo es obligatorio con `--git`.
+PXP nunca modifica la configuración global de Git ni
+hereda las variables `GIT_*` que podrían redirigir la
+operación a otro repositorio. No cambia permisos y no
+ejecuta comandos mediante shell.
+
+## Añadir PXP a un proyecto existente
+
+Entra en su carpeta y ejecuta:
+
+```bash
+cd mi-proyecto-existente
+pxp init
+pxp standards show
+pxp prompt show
+```
+
+Esto funciona con o sin Git y no exige `--git`.
+Añade únicamente la configuración local `.pxp/` y las
+plantillas faltantes. Conserva el código, los commits,
+los remotos, los artefactos existentes y los valores
+de configuración PXP ya guardados. Puedes repetirlo.
+
+Si el proyecto ya contiene `.pxp/config.json`, se lee
+esa configuración; los comandos cargan también sus
+perfiles y asociaciones de prompts existentes. No se
+importa ni se copia automáticamente la configuración
+de otro repositorio. Elige los estándares y archivos
+base del proyecto con `standards configure` y
+`prompt set`.
+
+### Raíz del proyecto y subdirectorios
+
+Dentro de Git, todos los comandos buscan la raíz del
+repositorio para evitar crear otro `.git` o `.pxp`
+accidentalmente en `src/` u otros subdirectorios.
+También se admiten worktrees cuyo `.git` es un archivo.
+Si hay un proyecto PXP configurado más cercano dentro
+del mismo repositorio, se conserva ese límite en vez
+de mover sus archivos. En ese caso, `init --git` falla
+si la raíz PXP no coincide con la raíz Git; ejecuta el
+comando desde la raíz Git o utiliza `init` sin el flag.
+No se ofrece una opción para forzar repos anidados.
+
+Fuera de Git se mantiene el comportamiento anterior:
+los comandos usan el directorio actual. Una carpeta
+`.git` vacía en un antecesor no identifica un repo.
+No trabajes directamente en los metadatos `.git` ni en
+repositorios bare: PXP espera un árbol de trabajo.
+
+Un error de Git detiene la creación de `.pxp/` y
+muestra una indicación para revisar la instalación,
+los permisos o la configuración. No se intenta reparar
+metadatos existentes ni borrar archivos ante un fallo.
+Si Git alcanzó a crear metadatos antes del error, estos
+pueden quedar en disco: revísalos antes de reintentar.
+Si Git termina bien pero después falla la creación de
+PXP, el repositorio Git también se conserva.
+
 ## Iniciar con instrucciones base propias
 
 Para sustituir las instrucciones base incorporadas de
-Codex en un modo, crea primero tu propio archivo UTF-8
-en el proyecto. PXP no genera su contenido ni exige
-que los nueve modos tengan uno.
+Codex en un modo, escribe tu propio archivo UTF-8 con
+`prompt edit` o asocia uno existente con
+`pxp prompt set plan prompts/plan.md`. PXP no genera
+instrucciones ni exige configurar los nueve modos.
 
 ```bash
 pxp init
-# Crea y revisa prompts/plan.md con tu editor.
-pxp prompt set plan prompts/plan.md
+pxp prompt edit plan
 pxp prompt show plan
 pxp mode plan
 pxp chat "Revisa los requisitos"
@@ -260,6 +402,162 @@ Codex el modo, el perfil y las rutas de cinco artefactos:
 contenido existente. Los títulos de plantillas y textos
 de interfaz se conservan en inglés por compatibilidad.
 La configuración principal mantiene `schema_version: 1`.
+
+## Paquetes nativos Debian y Arch
+
+El builder local genera un `.deb` y una receta Arch
+con su fuente y checksum. En Arch puede generar además
+el `.pkg.tar.zst` con **makepkg real**. No instala nada,
+no requiere root y no descarga fuentes/dependencias.
+La versión sale de `pyproject.toml`; el empaquetado
+actual admite versiones estables `X.Y.Z`, release `1`.
+
+### Construir desde el repositorio
+
+Requiere Python **3.11+** para construir (la aplicación
+instalada sigue necesitando Python 3.10+). Ejecuta:
+
+```bash
+python3 tools/package.py build --output dist/native
+```
+
+En Arch, con `base-devel`, Python y Git ya instalados:
+
+```bash
+python3 tools/package.py build --arch \
+  --output dist/native-arch
+```
+
+No usa `makepkg --syncdeps` ni instala paquetes del SO.
+Si falta una herramienta/dependencia, el proceso falla
+conservando las salidas ya construidas. Usa siempre
+un directorio de salida nuevo o vacío; no sobrescribe
+una entrega anterior.
+
+Se emiten:
+
+- `pxp-harness_0.1.0-1_all.deb`.
+- `pxp-harness-0.1.0-source.tar.gz`: fuente permitida,
+  tests y herramientas necesarios para reconstruir.
+- `pxp-harness-0.1.0-arch-build.tar.gz`: `PKGBUILD`
+  utilizable y la misma fuente local, con SHA-256 real.
+- `arch/PKGBUILD` y su fuente para ejecutar `makepkg`
+  directamente sin descargar el proyecto.
+- `manifest.json` y `SHA256SUMS` para verificar entrega.
+- Con `--arch`, `pxp-harness-0.1.0-1-any.pkg.tar.zst`.
+
+Los nombres cambian automáticamente con la versión.
+Comprueba los archivos desde el directorio de salida:
+
+```bash
+sha256sum -c SHA256SUMS
+```
+
+Para usar la receta fuente Arch en otra máquina:
+
+```bash
+mkdir arch-build
+cd arch-build
+tar -xzf ../pxp-harness-0.1.0-arch-build.tar.gz
+makepkg
+```
+
+La construcción parte de una lista explícita de fuentes:
+no copia `.git/`, `.pxp/`, `.codex/`, entornos, cachés,
+artefactos de otros proyectos ni prompts personales.
+La skill se incluye como recurso estático, no se
+registra globalmente en Codex.
+
+### Instalar en la máquina de destino
+
+Estos comandos requieren permisos de administrador y
+**los ejecuta el usuario**, no el builder:
+
+```bash
+# Debian
+sudo apt install ./pxp-harness_0.1.0-1_all.deb
+
+# Arch
+sudo pacman -U ./pxp-harness-0.1.0-1-any.pkg.tar.zst
+```
+
+En Arch, Git, NeoVim y Ruff son dependencias opcionales;
+instala Git/NeoVim si vas a usar repositorios o edición.
+Debian recomienda Git y NeoVim y sugiere Ruff. Ruff
+0.16.4+ es necesario solo para `standards check/apply`.
+Codex es un requisito externo para `chat`: instálalo
+y autentícalo por separado con sus instrucciones
+oficiales. Ningún paquete lo descarga ni inicia login.
+
+Se instala un lanzador `/usr/bin/pxp` con Python del
+sistema y módulos privados en `/usr/share/pxp-harness/`.
+No contiene un venv ni modifica módulos de Python
+ajenos. La documentación y el aviso de empaquetado
+se guardan en rutas estándar bajo `/usr/share/`.
+Debian compila/limpia exclusivamente el bytecode de
+la aplicación al instalar o retirar el paquete.
+
+### Configuración SIEMPRE por proyecto
+
+Ni el paquete ni PXP escriben en
+`~/.codex/config.toml`, `$CODEX_HOME/config.toml`,
+perfiles de shell ni `.codex/config.toml` del proyecto.
+Todos los archivos de base prompts y asociaciones
+permanecen dentro del repo, en `.pxp/prompts.json`
+y las rutas locales que elijas. Cada `pxp chat` pasa
+el archivo del modo activo mediante `-c
+model_instructions_file=...` solo a ese proceso.
+`EDITOR`/`VISUAL` también se establecen únicamente en
+el proceso hijo, no globalmente.
+
+La suite prueba dos proyectos con prompts distintos y
+un `CODEX_HOME/config.toml` centinela: `init`, ajustes,
+edición y lanzamiento simulado conservan sus bytes.
+Esto prueba lo que hace PXP; Codex puede mantener su
+propio historial/autenticación al ejecutarse realmente.
+Actualizar o retirar el paquete no borra tus repos ni
+sus archivos `.pxp/`.
+
+### Reproducibilidad, validación y límites
+
+Los archivos Debian y los tarballs se normalizan por
+orden, UID/GID 0, permisos y `SOURCE_DATE_EPOCH`.
+Con la misma fuente, fecha y herramienta de construcción
+se comprueban bytes idénticos. Puedes fijar la fecha:
+
+```bash
+SOURCE_DATE_EPOCH=1700000000 python3 tools/package.py \
+  build --output dist/rebuild
+```
+
+Ese valor también es el predeterminado documentado;
+no representa la fecha de publicación del proyecto.
+Arch usa su flujo nativo y guarda `.BUILDINFO` con
+versiones instaladas y rutas del entorno de build.
+Para comparar bytes Arch necesitas también el mismo
+entorno/rutas/configuración de makepkg. No se promete
+reproducción bit a bit entre hosts distintos.
+
+Se puede inspeccionar/extractar y probar el lanzador
+sin instalar el paquete en el sistema. Una validación
+por extracción no sustituye una instalación real en
+una VM Debian/Arch limpia. No se ha creado una imagen
+de VM, repositorio APT/Pacman, firma ni publicación AUR.
+
+**Aviso de redistribución:** los metadatos originales
+indican MIT, pero el proyecto no trae su aviso completo
+de licencia/copyright. `packaging/NOTICE` registra esa
+limitación sin inventar autoría ni conceder derechos.
+El maintainer Debian predeterminado usa el dominio
+reservado `example.invalid` para builds locales; usa
+`--maintainer 'Nombre <correo-publico-verificado>'`
+con datos reales solo si decides redistribuir y tras
+resolver el aviso ausente.
+
+Referencias técnicas:
+[política Python Debian](https://www.debian.org/doc/packaging-manuals/python-policy/),
+[formato Debian](https://manpages.debian.org/unstable/dpkg-dev/deb.5.en.html),
+[PKGBUILD](https://man.archlinux.org/man/PKGBUILD.5.en).
 
 ## Desarrollo y verificación
 
