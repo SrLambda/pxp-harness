@@ -16,3 +16,14 @@ pxp = "pxp_harness.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[project.optional-dependencies]
+dev = ["ruff==0.16.4"]
+
+[tool.ruff]
+line-length = 50
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "D"]
+ignore = ["D203", "D213"]
