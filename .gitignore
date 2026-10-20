@@ -8,3 +8,5 @@ dist/
 *.deb
 *.pkg.tar.*
 *.src.tar.*
+
+.pxp/engram/

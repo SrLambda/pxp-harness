@@ -10,6 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from . import memory
 from .editor import open_prompt
 from .project import (
     MODES,
@@ -124,6 +125,14 @@ def _parser() -> argparse.ArgumentParser:
         editor.add_argument("mode_id", nargs="?")
     clear = actions.add_parser("clear")
     clear.add_argument("mode_id")
+    memories = subparsers.add_parser("memory")
+    memories.add_argument(
+        "action",
+        nargs="?",
+        default="show",
+        choices=["show", "enable", "disable"],
+    )
+    memories.add_argument("--executable")
     return parser
 
 
@@ -188,6 +197,7 @@ def _chat(root: Path, prompt: str) -> int:
         f"User request: {request}"
     )
     command = [executable]
+    command.extend(memory.arguments(root))
     if base_prompt is not None:
         encoded = json.dumps(
             str(base_prompt), ensure_ascii=False
@@ -246,6 +256,15 @@ def main(
                 )
             )
             print("Artifacts: .pxp/artifacts/")
+            return 0
+        if args.command == "memory":
+            if args.action != "show":
+                memory.configure(
+                    root,
+                    args.action == "enable",
+                    args.executable,
+                )
+            print(json.dumps(memory.load(root)))
             return 0
         if args.command == "mode":
             config = load_config(root)

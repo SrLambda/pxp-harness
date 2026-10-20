@@ -2,7 +2,7 @@ pkgname=pxp-harness
 pkgver=@VERSION@
 pkgrel=1
 pkgdesc='Project-local context and modes for Codex CLI'
-arch=('any')
+arch=('@ARCH@')
 url='https://github.com/SrLambda/pxp-harness'
 license=('MIT')
 depends=('python>=3.10')

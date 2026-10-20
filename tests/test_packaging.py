@@ -119,7 +119,16 @@ class PackagingTests(unittest.TestCase):
                 .decode()
             )
             self.assertIn(
-                "Architecture: all", control
+                "Architecture: "
+                + (
+                    "amd64"
+                    if (
+                        ROOT
+                        / "vendor/engram.tar.gz"
+                    ).exists()
+                    else "all"
+                ),
+                control,
             )
             self.assertIn(
                 "Depends: python3 (>= 3.10)",
@@ -178,7 +187,16 @@ class PackagingTests(unittest.TestCase):
         self.build()
         recipe = self.output / "arch/PKGBUILD"
         text = recipe.read_text()
-        self.assertIn("arch=('any')", text)
+        architecture = (
+            "x86_64"
+            if (
+                ROOT / "vendor/engram.tar.gz"
+            ).exists()
+            else "any"
+        )
+        self.assertIn(
+            f"arch=('{architecture}')", text
+        )
         self.assertNotIn("SKIP", text)
         self.assertNotIn("curl ", text)
         self.assertNotIn("sudo ", text)
@@ -188,7 +206,7 @@ class PackagingTests(unittest.TestCase):
             ).read_text()
         )
         self.assertEqual(
-            manifest["version"], "0.1.0"
+            manifest["version"], "0.2.0"
         )
         self.assertIn("sha256", manifest)
 
@@ -268,4 +286,28 @@ class PackagingTests(unittest.TestCase):
                 self.output,
                 1700000000,
             ),
+        )
+
+    def test_engram_checksum_is_required(self):
+        """Rechaza dependencias adulteradas."""
+        spec = spec_from_file_location(
+            "builder_engram", SCRIPT
+        )
+        module = module_from_spec(spec)
+        spec.loader.exec_module(module)
+        bad = Path(self.temp.name) / "bad.tar.gz"
+        bad.write_bytes(b"not the pinned asset")
+        with self.assertRaises(ValueError):
+            module.engram_payload(ROOT, bad)
+
+    def test_runtime_version_matches(self):
+        """Mantiene sincronizada la versión."""
+        spec = spec_from_file_location(
+            "pxp_version",
+            ROOT / "src/pxp_harness/__init__.py",
+        )
+        module = module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertEqual(
+            module.__version__, "0.2.0"
         )

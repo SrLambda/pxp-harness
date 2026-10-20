@@ -596,3 +596,13 @@ ejecuta la [prueba local de sandbox](docs/sandbox-test.md).
 No llama a modelos ni modifica configuración global.
 Un resultado básico PASS no valida todavía perfiles
 por rol ni protección de su política.
+
+## PXP + Engram (0.2.0 de prueba)
+
+La release de prueba incluye paquetes Debian amd64 y
+Arch x86_64 con Engram 3.5.1 fijado y verificado.
+Después de instalarlos: `pxp memory enable` dentro de
+cada repo. No modifica configuración global de Codex.
+Consulta [activación, privacidad y reconstrucción](docs/memory.md).
+La memoria es opt-in y su uso por el modelo es de mejor
+esfuerzo; los permisos por rol todavía no se implementan.

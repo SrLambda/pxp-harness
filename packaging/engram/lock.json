@@ -1,0 +1,9 @@
+{
+  "version": "3.5.1",
+  "platform": "linux_amd64",
+  "url": "https://github.com/Gentleman-Programming/engram/releases/download/v3.5.1/engram_3.5.1_linux_amd64.tar.gz",
+  "sha256": "739d188cb03634a77d435ad4a8039de30e599b0e696256ebf7118b29675307ca",
+  "license_sha256": "09608597ddda4e5f9033ac407a0d401986d96376c47f6d46789ca38db672dc15",
+  "license": "MIT",
+  "license_url": "https://raw.githubusercontent.com/Gentleman-Programming/engram/v3.5.1/LICENSE"
+}

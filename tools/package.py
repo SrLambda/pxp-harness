@@ -28,6 +28,7 @@ MODULES = (
     "__main__",
     "cli",
     "editor",
+    "memory",
     "project",
     "prompts",
     "repository",
@@ -38,6 +39,8 @@ TESTS = (
     "editor",
     "isolation",
     "packaging",
+    "memory",
+    "sandbox",
     "prompts",
     "quality",
     "repository",
@@ -47,6 +50,11 @@ FIXED = (
     "README.md",
     "pyproject.toml",
     "tools/package.py",
+    "tools/check_sandbox.py",
+    "docs/sandbox-test.md",
+    "docs/memory.md",
+    "packaging/engram/LICENSE",
+    "packaging/engram/lock.json",
     "packaging/NOTICE",
     "packaging/launcher",
     "packaging/arch/PKGBUILD.in",
@@ -93,7 +101,59 @@ def source_files(root: Path) -> dict:
     return result
 
 
-def payload(root: Path) -> dict:
+def engram_payload(root, archive):
+    """Verifica el binario fijado."""
+    lock = json.loads(
+        (
+            root / "packaging/engram/lock.json"
+        ).read_text()
+    )
+    raw = archive.read_bytes()
+    if (
+        hashlib.sha256(raw).hexdigest()
+        != (lock["sha256"])
+    ):
+        raise ValueError(
+            "Engram checksum mismatch."
+        )
+    license_data = (
+        root / "packaging/engram/LICENSE"
+    ).read_bytes()
+    if (
+        hashlib.sha256(license_data).hexdigest()
+        != (lock["license_sha256"])
+    ):
+        raise ValueError(
+            "Engram license mismatch."
+        )
+    with tarfile.open(
+        fileobj=io.BytesIO(raw)
+    ) as bundle:
+        entry = bundle.getmember("engram")
+        if not entry.isfile():
+            raise ValueError(
+                "Invalid Engram asset."
+            )
+        binary = bundle.extractfile(entry).read()
+    if binary[:5] != b"\x7fELF\x02":
+        raise ValueError("Expected 64-bit ELF.")
+    if binary[18:20] != b"\x3e\x00":
+        raise ValueError("Expected x86_64 ELF.")
+    return {
+        "usr/libexec/pxp-harness/engram": (
+            binary,
+            0o755,
+        ),
+        "usr/share/licenses/pxp-harness/"
+        "ENGRAM-LICENSE": (license_data, 0o644),
+        "usr/share/pxp-harness/engram.json": (
+            json.dumps(lock, indent=2).encode(),
+            0o644,
+        ),
+    }
+
+
+def payload(root: Path, engram=None) -> dict:
     """Prepara archivos privados de la app."""
     sources = source_files(root)
     result = {}
@@ -109,6 +169,14 @@ def payload(root: Path) -> dict:
     result[
         "usr/share/doc/pxp-harness/README.md"
     ] = (sources["README.md"], 0o644)
+    for document in (
+        "sandbox-test.md",
+        "memory.md",
+    ):
+        result[
+            "usr/share/doc/pxp-harness/docs/"
+            + document
+        ] = (sources["docs/" + document], 0o644)
     notice = (sources["packaging/NOTICE"], 0o644)
     result[
         "usr/share/doc/pxp-harness/copyright"
@@ -121,6 +189,13 @@ def payload(root: Path) -> dict:
         "pxp-python-standards/SKILL.md"
     )
     result[skill] = (sources[FIXED[-1]], 0o644)
+    archive = engram or (
+        root / "vendor/engram.tar.gz"
+    )
+    if engram is not None or archive.exists():
+        result.update(
+            engram_payload(root, archive)
+        )
     return result
 
 
@@ -195,11 +270,18 @@ def compressed_tar(
 
 
 def deb(
-    root: Path, epoch: int, maintainer: str
+    root: Path,
+    epoch: int,
+    maintainer: str,
+    engram=None,
 ) -> bytes:
     """Construye un paquete Debian 2.0."""
     release = version(root)
-    files = payload(root)
+    if engram is None:
+        candidate = root / "vendor/engram.tar.gz"
+        if candidate.exists():
+            engram = candidate
+    files = payload(root, engram)
     installed = (
         sum(
             len(data)
@@ -207,11 +289,12 @@ def deb(
         )
         + 1023
     ) // 1024
+    architecture = "amd64" if engram else "all"
     control = (
         "Package: pxp-harness\n"
         f"Version: {release}-1\n"
         "Section: devel\nPriority: optional\n"
-        "Architecture: all\n"
+        f"Architecture: {architecture}\n"
         f"Maintainer: {maintainer}\n"
         "Depends: python3 (>= 3.10)\n"
         "Recommends: git, neovim\n"
@@ -323,8 +406,13 @@ def build(
     epoch: int,
     maintainer: str,
     arch=False,
+    engram=None,
 ) -> None:
     """Construye paquetes y recetas nativas."""
+    if engram is None:
+        candidate = root / "vendor/engram.tar.gz"
+        if candidate.exists():
+            engram = candidate
     if output.exists() and any(output.iterdir()):
         raise ValueError(
             "Output directory must be empty."
@@ -343,6 +431,12 @@ def build(
             root
         ).items()
     }
+    if engram is not None:
+        engram_payload(root, engram)
+        sources[
+            f"pxp-harness-{release}/"
+            "vendor/engram.tar.gz"
+        ] = (engram.read_bytes(), 0o644)
     source = output / source_name
     source.write_bytes(
         compressed_tar(sources, epoch)
@@ -355,17 +449,22 @@ def build(
         .read_text()
         .replace("@VERSION@", release)
         .replace("@SHA256@", digest)
+        .replace(
+            "@ARCH@",
+            "x86_64" if engram else "any",
+        )
     )
     folder = output / "arch"
     folder.mkdir()
     (folder / "PKGBUILD").write_text(recipe)
     shutil.copy2(source, folder / source_name)
+    architecture = "amd64" if engram else "all"
     package = (
-        output
-        / f"pxp-harness_{release}-1_all.deb"
+        output / f"pxp-harness_{release}-1_"
+        f"{architecture}.deb"
     )
     package.write_bytes(
-        deb(root, epoch, maintainer)
+        deb(root, epoch, maintainer, engram)
     )
     bundle = output / (
         f"pxp-harness-{release}-arch-build.tar.gz"
@@ -398,6 +497,14 @@ def build(
     }
     manifest = {
         "version": release,
+        "engram": json.loads(
+            (
+                root
+                / "packaging/engram/lock.json"
+            ).read_text()
+        )
+        if engram
+        else None,
         "builder_python": sys.version.split()[0],
         "package_release": 1,
         "source_date_epoch": epoch,
@@ -446,6 +553,9 @@ def main() -> int:
     package.add_argument(
         "--maintainer", default=MAINTAINER
     )
+    package.add_argument(
+        "--engram-archive", type=Path
+    )
     install = sub.add_parser("stage")
     install.add_argument(
         "--destdir", type=Path, required=True
@@ -472,6 +582,7 @@ def main() -> int:
                 args.epoch,
                 args.maintainer,
                 args.arch,
+                args.engram_archive,
             )
     except (
         OSError,
