@@ -19,7 +19,6 @@ jobs:
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 45
     env:
-      REPORT_DIR: ${{ runner.temp }}/pxp-docker-${{ github.run_id }}-${{ github.run_attempt }}
       SUITE: ${{ inputs.suite }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -28,12 +27,14 @@ jobs:
           set-safe-directory: false
           clean: true
       - name: Una prueba por contenedor
-        run: python3 tools/test_docker.py --suite "$SUITE" --report-dir "$REPORT_DIR"
+        run: |
+          python3 tools/test_docker.py --suite "$SUITE" \
+            --report-dir "$RUNNER_TEMP/pxp-docker-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
       - name: Resultados sanitizados
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: docker-results-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.REPORT_DIR }}
+          path: ${{ runner.temp }}/pxp-docker-${{ github.run_id }}-${{ github.run_attempt }}
           if-no-files-found: error
           retention-days: 7

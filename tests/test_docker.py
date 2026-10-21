@@ -160,3 +160,24 @@ class DockerTests(unittest.TestCase):
                 "--cap-add",
                 MODULE.command("image", case),
             )
+
+    def test_runner_context_is_step_scoped(self):
+        """No usa runner.temp en env del job."""
+        workflow = (
+            PATH.parents[1]
+            / ".github/workflows/docker-tests.yml"
+        ).read_text()
+        job_env = workflow.split("    env:\n", 1)[
+            1
+        ].split("    steps:\n", 1)[0]
+        self.assertNotIn("runner.temp", job_env)
+        self.assertIn(
+            "path: ${{ runner.temp }}"
+            "/pxp-docker-",
+            workflow,
+        )
+        self.assertIn(
+            '--report-dir "$RUNNER_TEMP/'
+            "pxp-docker-",
+            workflow,
+        )
