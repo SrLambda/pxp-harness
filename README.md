@@ -606,3 +606,11 @@ cada repo. No modifica configuración global de Codex.
 Consulta [activación, privacidad y reconstrucción](docs/memory.md).
 La memoria es opt-in y su uso por el modelo es de mejor
 esfuerzo; los permisos por rol todavía no se implementan.
+
+## Pruebas aisladas con Docker
+
+El workflow manual **Docker isolated tests** ejecuta
+cada unittest en un contenedor nuevo, sin red ni mounts
+del host. Incluye escenarios de wheel y Engram; `full`
+añade instalación y eliminación Debian/Arch.
+Consulta [límites, requisitos e informes](docs/docker-tests.md).

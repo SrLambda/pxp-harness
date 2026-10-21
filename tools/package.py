@@ -41,6 +41,7 @@ TESTS = (
     "packaging",
     "memory",
     "sandbox",
+    "docker",
     "prompts",
     "quality",
     "repository",
@@ -51,8 +52,15 @@ FIXED = (
     "pyproject.toml",
     "tools/package.py",
     "tools/check_sandbox.py",
+    "tools/test_docker.py",
+    "tools/docker_case.py",
+    "tools/docker_prepare.py",
+    "ci/Dockerfile.debian",
+    "ci/Dockerfile.arch",
     "docs/sandbox-test.md",
     "docs/memory.md",
+    "docs/docker-tests.md",
+    ".github/workflows/docker-tests.yml",
     "packaging/engram/LICENSE",
     "packaging/engram/lock.json",
     "packaging/NOTICE",
@@ -172,6 +180,7 @@ def payload(root: Path, engram=None) -> dict:
     for document in (
         "sandbox-test.md",
         "memory.md",
+        "docker-tests.md",
     ):
         result[
             "usr/share/doc/pxp-harness/docs/"
