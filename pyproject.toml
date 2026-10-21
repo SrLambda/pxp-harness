@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pxp-harness"
-version = "0.2.0"
+version = "0.2.0rc2"
 description = "A lightweight project context and mode launcher for Codex CLI"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = { file = "LICENSE" }
 dependencies = []
 
 [project.scripts]

@@ -78,14 +78,16 @@ class IsolationTests(unittest.TestCase):
                     with (
                         patch(
                             (
-                                "pxp_harness.cli."
+                                "pxp_harness."
+                                "codex."
                                 "shutil.which"
                             ),
                             return_value="codex",
                         ),
                         patch(
                             (
-                                "pxp_harness.cli."
+                                "pxp_harness."
+                                "codex."
                                 "subprocess.run"
                             ),
                             return_value=CP(

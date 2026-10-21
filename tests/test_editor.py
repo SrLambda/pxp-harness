@@ -269,11 +269,12 @@ class EditorTests(unittest.TestCase):
         original = dict(os.environ)
         with (
             patch(
-                "pxp_harness.cli.shutil.which",
+                "pxp_harness.codex.shutil.which",
                 return_value="/usr/bin/codex",
             ),
             patch(
-                "pxp_harness.cli.subprocess.run",
+                "pxp_harness.codex."
+                "subprocess.run",
                 return_value=CompletedProcess(
                     [], 0
                 ),

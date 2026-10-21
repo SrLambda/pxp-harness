@@ -5,7 +5,7 @@ lanza **un contenedor efímero por ID unittest**.
 El descubrimiento de pruebas ocurre dentro de Docker,
 no importando los tests en el runner anfitrión.
 También prueba wheel instalado y Engram MCP real con
-dos stores separados. No usa modelos ni credenciales.
+dos stores separados y reapertura tras reiniciar. No usa modelos ni credenciales.
 
 ## GitHub Actions
 
@@ -25,8 +25,8 @@ el kernel y no convierte código hostil en seguro.
   real Debian y Arch, una por contenedor independiente.
 
 El número crece automáticamente con los tests del
-repositorio. Actualmente son 104 unit tests: **106
-contenedores de prueba** para unit, **108** para full,
+repositorio. Para N unit tests hay **N + 2**
+contenedores de prueba en unit y **N + 4** en full,
 además del descubrimiento y preparación. Prevé varios
 minutos; la primera descarga/build puede tardar más.
 Timeout por caso: 180 s; por imagen: 900 s; job: 45 min.
@@ -93,6 +93,9 @@ en el host ni modifica su configuración global.
 Las pruebas de paquetes verifican launcher, activación
 de memoria, conservación del sentinel Codex global y
 datos del proyecto después de eliminar la aplicación.
+Guardan un registro mediante el Engram instalado, paran
+el proceso, desinstalan y buscan el registro con otro
+ejecutable verificado sobre la misma base conservada.
 No validan una sesión real de Codex o NeoVim. Tampoco
 prueban permisos por rol; ese desarrollo sigue pendiente.
 

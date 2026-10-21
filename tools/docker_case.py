@@ -83,122 +83,123 @@ def wheel(root):
     assert (root / ".pxp/config.json").is_file()
 
 
-def engram(root):
-    """Verifica persistencia y separación real."""
-    binary = Path("/opt/vendor/engram")
-    for index in range(2):
-        project = root / str(index)
-        project.mkdir()
-        process = subprocess.Popen(
-            [str(binary), "mcp"],
-            cwd=project,
-            env={
-                **os.environ,
-                "ENGRAM_DATA_DIR": str(
-                    project / ".pxp/engram"
-                ),
-                "ENGRAM_CLOUD_AUTOSYNC": "0",
-                "ENGRAM_PROJECT": "",
-            },
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
+def memory_probe(project, binary, save, expected):
+    """Consulta una base en un proceso nuevo."""
+    project.mkdir(parents=True, exist_ok=True)
+    process = subprocess.Popen(
+        [str(binary), "mcp"],
+        cwd=project,
+        env={
+            **os.environ,
+            "ENGRAM_DATA_DIR": str(
+                project / ".pxp/engram"
+            ),
+            "ENGRAM_CLOUD_AUTOSYNC": "0",
+            "ENGRAM_PROJECT": "",
+        },
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    )
+
+    def call(identifier, method, params):
+        request = {
+            "jsonrpc": "2.0",
+            "id": identifier,
+            "method": method,
+            "params": params,
+        }
+        process.stdin.write(
+            json.dumps(request) + "\n"
         )
+        process.stdin.flush()
+        response = json.loads(
+            process.stdout.readline()
+        )
+        assert "error" not in response
+        assert not response["result"].get(
+            "isError"
+        )
+        return response["result"]
 
-        def call(identifier, method, params):
-            request = {
-                "jsonrpc": "2.0",
-                "id": identifier,
-                "method": method,
-                "params": params,
-            }
-            process.stdin.write(
-                json.dumps(request) + "\n"
-            )
-            process.stdin.flush()
-            response = json.loads(
-                process.stdout.readline()
-            )
-            assert "error" not in response
-            assert not response["result"].get(
-                "isError"
-            )
-            return response["result"]
-
-        try:
-            call(
-                1,
-                "initialize",
+    try:
+        call(
+            1,
+            "initialize",
+            {
+                "protocolVersion": ("2024-11-05"),
+                "capabilities": {},
+                "clientInfo": {
+                    "name": "pxp-docker",
+                    "version": "0.2.0",
+                },
+            },
+        )
+        process.stdin.write(
+            json.dumps(
                 {
-                    "protocolVersion": (
-                        "2024-11-05"
+                    "jsonrpc": "2.0",
+                    "method": (
+                        "notifications/"
+                        "initialized"
                     ),
-                    "capabilities": {},
-                    "clientInfo": {
-                        "name": "pxp-docker",
-                        "version": "0.2.0",
-                    },
-                },
+                }
             )
-            process.stdin.write(
-                json.dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "method": (
-                            "notifications/"
-                            "initialized"
-                        ),
-                    }
-                )
-                + "\n"
-            )
-            process.stdin.flush()
-            call(2, "tools/list", {})
-            if index == 0:
-                call(
-                    3,
-                    "tools/call",
-                    {
-                        "name": "mem_save",
-                        "arguments": {
-                            "title": (
-                                "Docker isolation"
-                            ),
-                            "content": (
-                                "unique739dtest"
-                            ),
-                            "capture_prompt": (
-                                False
-                            ),
-                        },
-                    },
-                )
-            found = call(
-                4,
-                "tools/call",
-                {
-                    "name": "mem_search",
-                    "arguments": {
-                        "query": "unique739dtest"
-                    },
-                },
-            )
-            assert (
-                "Docker isolation"
-                in json.dumps(found)
-            ) == (index == 0)
+            + "\n"
+        )
+        process.stdin.flush()
+        call(2, "tools/list", {})
+        if save:
             call(
-                5,
+                3,
                 "tools/call",
                 {
-                    "name": "mem_context",
-                    "arguments": {},
+                    "name": "mem_save",
+                    "arguments": {
+                        "title": (
+                            "Docker isolation"
+                        ),
+                        "content": (
+                            "unique739dtest"
+                        ),
+                        "capture_prompt": (False),
+                    },
                 },
             )
-        finally:
-            process.terminate()
-            process.wait(timeout=5)
+        found = call(
+            4,
+            "tools/call",
+            {
+                "name": "mem_search",
+                "arguments": {
+                    "query": "unique739dtest"
+                },
+            },
+        )
+        assert (
+            "Docker isolation"
+            in json.dumps(found)
+        ) == expected
+        call(
+            5,
+            "tools/call",
+            {
+                "name": "mem_context",
+                "arguments": {},
+            },
+        )
+    finally:
+        process.terminate()
+        process.wait(timeout=5)
+
+
+def engram(root):
+    """Verifica reinicio y separación real."""
+    binary = Path("/opt/vendor/engram")
+    memory_probe(root / "0", binary, True, True)
+    memory_probe(root / "1", binary, False, False)
+    memory_probe(root / "0", binary, False, True)
 
 
 def native(root, distro):
@@ -246,7 +247,19 @@ def native(root, distro):
     assert (
         sentinel.read_text() == "global sentinel"
     )
+    memory_probe(
+        root,
+        Path("/usr/libexec/pxp-harness/engram"),
+        True,
+        True,
+    )
     run(remove, root)
+    memory_probe(
+        root,
+        Path("/opt/vendor/engram"),
+        False,
+        True,
+    )
     assert not Path("/usr/bin/pxp").exists()
     assert (root / ".pxp/config.json").exists()
     assert (

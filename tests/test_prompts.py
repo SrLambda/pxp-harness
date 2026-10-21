@@ -77,11 +77,12 @@ class PromptTests(unittest.TestCase):
         set_prompt(self.root, "plan", str(source))
         with (
             patch(
-                "pxp_harness.cli.shutil.which",
+                "pxp_harness.codex.shutil.which",
                 return_value="/usr/bin/codex",
             ),
             patch(
-                "pxp_harness.cli.subprocess.run",
+                "pxp_harness.codex."
+                "subprocess.run",
                 return_value=CompletedProcess(
                     [], 0
                 ),
@@ -130,7 +131,7 @@ class PromptTests(unittest.TestCase):
         )
         self.source.unlink()
         with patch(
-            "pxp_harness.cli.subprocess.run"
+            "pxp_harness.codex.subprocess.run"
         ) as run:
             self.assertEqual(
                 self.cli("chat", "hi"), 1
@@ -198,11 +199,11 @@ class PromptTests(unittest.TestCase):
             "{SECRET",
             "[]",
             '{"plan": []}',
-            '{"unknown": "x"}',
+            '{"invalid id": "x"}',
         ):
             path.write_text(text)
             with patch(
-                "pxp_harness.cli.subprocess.run"
+                "pxp_harness.codex.subprocess.run"
             ) as run:
                 self.assertEqual(
                     self.cli("chat", "hi"), 1
@@ -242,11 +243,12 @@ class PromptTests(unittest.TestCase):
         )
         with (
             patch(
-                "pxp_harness.cli.shutil.which",
+                "pxp_harness.codex.shutil.which",
                 return_value="codex",
             ),
             patch(
-                "pxp_harness.cli.subprocess.run",
+                "pxp_harness.codex."
+                "subprocess.run",
                 return_value=CompletedProcess(
                     [], 0
                 ),
@@ -290,7 +292,7 @@ class PromptTests(unittest.TestCase):
         with (
             patch.object(Path, "open", read),
             patch(
-                "pxp_harness.cli.subprocess.run"
+                "pxp_harness.codex.subprocess.run"
             ) as run,
         ):
             self.assertEqual(
@@ -315,11 +317,12 @@ class PromptTests(unittest.TestCase):
         )
         with (
             patch(
-                "pxp_harness.cli.shutil.which",
+                "pxp_harness.codex.shutil.which",
                 return_value="codex",
             ),
             patch(
-                "pxp_harness.cli.subprocess.run",
+                "pxp_harness.codex."
+                "subprocess.run",
                 return_value=CompletedProcess(
                     [], 0
                 ),
@@ -342,7 +345,7 @@ class PromptTests(unittest.TestCase):
         with (
             redirect_stderr(error),
             patch(
-                "pxp_harness.cli.subprocess.run"
+                "pxp_harness.codex.subprocess.run"
             ) as run,
         ):
             self.assertEqual(
@@ -402,7 +405,7 @@ class PromptTests(unittest.TestCase):
             )
         )
         with patch(
-            "pxp_harness.cli.subprocess.run"
+            "pxp_harness.codex.subprocess.run"
         ) as run:
             self.assertEqual(
                 self.cli("chat", "task"), 1

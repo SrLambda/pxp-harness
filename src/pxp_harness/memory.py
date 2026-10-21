@@ -1,10 +1,14 @@
 """Integración explícita de Engram por repo."""
 
-import hashlib
-import json
 import os
 from pathlib import Path
 
+from .localio import (
+    checked,
+    read_json,
+    write_json,
+)
+from .mcp import MCPServer
 from .project import ProjectError, load_config
 
 PROTOCOL = (
@@ -19,17 +23,8 @@ PROTOCOL = (
 
 def paths(root):
     """Rechaza redirecciones externas."""
-    directory = root / ".pxp"
-    for path in (
-        directory,
-        directory / "memory.json",
-        directory / "engram",
-    ):
-        if path.is_symlink():
-            raise ProjectError(
-                "Memory symlinks are not allowed."
-            )
-    return directory / "memory.json"
+    checked(root, ".pxp/engram", directory=True)
+    return checked(root, ".pxp/memory.json")
 
 
 def load(root):
@@ -41,12 +36,7 @@ def load(root):
             "schema_version": 1,
             "enabled": False,
         }
-    try:
-        value = json.loads(path.read_text())
-    except (OSError, ValueError) as exc:
-        raise ProjectError(
-            "Invalid memory configuration."
-        ) from exc
+    value = read_json(root, path)
     if (
         not isinstance(value, dict)
         or set(value)
@@ -106,66 +96,34 @@ def configure(root, enabled, selected=None):
         config["executable"] = selected
     if enabled:
         executable(config)
-    paths(root).write_text(
-        json.dumps(config, indent=2) + "\n"
-    )
+    write_json(root, paths(root), config)
 
 
-def arguments(root):
-    """Genera solo opciones efímeras de Codex."""
+def integration(root):
+    """Devuelve configuración neutral."""
     config = load(root)
     if not config["enabled"]:
-        return []
+        return (), ()
     binary = executable(config)
-    data = root / ".pxp/engram"
-    try:
-        data.mkdir(mode=0o700, exist_ok=True)
-        if any(
-            path.is_symlink()
-            for path in data.rglob("*")
-        ):
-            raise OSError("Memory store symlink")
-    except OSError as exc:
+    data = checked(
+        root, ".pxp/engram", directory=True
+    )
+    if data.exists() and any(
+        path.is_symlink()
+        for path in data.rglob("*")
+    ):
         raise ProjectError(
-            "Cannot use project memory store."
-        ) from exc
-    suffix = hashlib.sha256(
-        str(root).encode()
-    ).hexdigest()[:12]
-    prefix = f"mcp_servers.pxp_engram_{suffix}."
-    settings = {
-        prefix + "command": str(binary),
-        prefix + "args": ["mcp"],
-        prefix + "cwd": str(root),
-        prefix + "env": {
-            "ENGRAM_DATA_DIR": str(data),
-            "ENGRAM_CLOUD_AUTOSYNC": "0",
-            "ENGRAM_PROJECT": "",
-        },
-        prefix + "enabled": True,
-        prefix + "required": True,
-        "developer_instructions": PROTOCOL,
-    }
-    result = []
-    for key, value in settings.items():
-        if isinstance(value, dict):
-            encoded = (
-                "{ "
-                + ", ".join(
-                    name
-                    + " = "
-                    + json.dumps(
-                        text, ensure_ascii=False
-                    )
-                    for name, text in (
-                        value.items()
-                    )
-                )
-                + " }"
-            )
-        else:
-            encoded = json.dumps(
-                value, ensure_ascii=False
-            )
-        result += ["-c", key + "=" + encoded]
-    return result
+            "Memory store symlink."
+        )
+    server = MCPServer(
+        "engram",
+        str(binary),
+        ("mcp",),
+        (),
+        (
+            ("ENGRAM_DATA_DIR", str(data)),
+            ("ENGRAM_CLOUD_AUTOSYNC", "0"),
+            ("ENGRAM_PROJECT", ""),
+        ),
+    )
+    return (server,), (PROTOCOL,)

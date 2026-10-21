@@ -2,72 +2,44 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
+from .localio import (
+    checked,
+    read_json,
+    write_json,
+)
 from .project import (
-    MODES,
     ProjectError,
+    get_workflow,
     load_config,
 )
+from .workflows import identifier
 
 MAX_BYTES = 1024 * 1024
 MODEL_INSTRUCTIONS = "model_instructions_file"
 
 
-def _mode(mode: str) -> None:
+def _mode(root, mode: str) -> None:
     """Rechaza modos no reconocidos."""
-    if not isinstance(mode, str) or mode not in {
-        item["id"] for item in MODES
-    }:
-        raise ProjectError("Unknown prompt mode.")
+    get_workflow(load_config(root)).mode(mode)
 
 
 def _config_path(root: Path) -> Path:
     """Rechaza configuraciones enlazadas."""
-    directory = root / ".pxp"
-    path = directory / "prompts.json"
-    if (
-        directory.is_symlink()
-        or path.is_symlink()
-    ):
-        raise ProjectError(
-            "Prompt config cannot be a symlink."
-        )
-    return path
+    return checked(root, ".pxp/prompts.json")
 
 
 def _resolve(root: Path, value: str) -> Path:
     """Resuelve únicamente rutas del proyecto."""
     if not isinstance(value, str) or not value:
         raise ProjectError("Invalid prompt path.")
-    try:
-        value.encode("utf-8")
-        if any(
-            ord(char) < 32 or ord(char) == 127
-            for char in value
-        ):
-            raise ValueError
-        candidate = Path(value)
-        if not candidate.is_absolute():
-            candidate = root / candidate
-        relative = candidate.relative_to(root)
-        if ".." in relative.parts:
-            raise ValueError
-        current = root
-        for part in relative.parts:
-            current = current / part
-            if current.is_symlink():
-                raise ValueError
-        resolved = candidate.resolve(strict=True)
-        resolved.relative_to(root)
-        if not resolved.is_file():
-            raise ValueError
-    except (OSError, ValueError, RuntimeError):
+    path = checked(root, value)
+    if not path.is_file():
         raise ProjectError(
             "Prompt must be a local regular file."
-        ) from None
-    return resolved
+        )
+    return path
 
 
 def _validate_file(path: Path) -> None:
@@ -97,20 +69,13 @@ def _read(root: Path) -> dict:
     path = _config_path(root)
     if not path.exists():
         return {}
-    try:
-        data = json.loads(
-            path.read_text(encoding="utf-8")
-        )
-    except (OSError, ValueError):
-        raise ProjectError(
-            "Cannot read prompt configuration."
-        ) from None
+    data = read_json(root, path)
     if not isinstance(data, dict):
         raise ProjectError(
             "Invalid prompt config."
         )
     for mode, value in data.items():
-        _mode(mode)
+        identifier(mode)
         if (
             not isinstance(value, str)
             or not value
@@ -140,25 +105,14 @@ def _read(root: Path) -> dict:
 
 def _save(root: Path, data: dict) -> None:
     """Guarda rutas sin tocar los prompts."""
-    try:
-        _config_path(root).write_text(
-            json.dumps(
-                data, indent=2, ensure_ascii=False
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-    except OSError:
-        raise ProjectError(
-            "Cannot save prompt configuration."
-        ) from None
+    write_json(root, _config_path(root), data)
 
 
 def set_prompt(
     root: Path, mode: str, value: str
 ) -> None:
     """Asocia un archivo existente con un modo."""
-    _mode(mode)
+    _mode(root, mode)
     data = _read(root)
     path = _resolve(root, value)
     _validate_file(path)
@@ -168,18 +122,20 @@ def set_prompt(
 
 def clear_prompt(root: Path, mode: str) -> None:
     """Elimina la asociación, nunca el archivo."""
-    _mode(mode)
+    identifier(mode)
     data = _read(root)
     if mode in data:
         del data[mode]
         _save(root, data)
+    else:
+        _mode(root, mode)
 
 
 def load_prompt(
     root: Path, mode: str
 ) -> Path | None:
     """Obtiene el archivo validado, si existe."""
-    _mode(mode)
+    _mode(root, mode)
     data = _read(root)
     if mode not in data:
         return None
@@ -192,17 +148,19 @@ def editable_prompt(
     root: Path, mode: str
 ) -> tuple[Path, bool]:
     """Resuelve un archivo o un borrador."""
-    _mode(mode)
+    _mode(root, mode)
     data = _read(root)
     if mode in data:
         return _resolve(root, data[mode]), False
-    directory = root / ".pxp/prompts"
+    directory = checked(
+        root, ".pxp/prompts", directory=True
+    )
     if directory.is_symlink():
         raise ProjectError(
             "Prompt directory cannot "
             "be a symlink."
         )
-    path = directory / f"{mode}.md"
+    path = checked(root, directory / f"{mode}.md")
     try:
         directory.mkdir(exist_ok=True)
         try:

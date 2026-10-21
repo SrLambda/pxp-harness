@@ -27,7 +27,13 @@ MODULES = (
     "__init__",
     "__main__",
     "cli",
+    "agents",
+    "codex",
     "editor",
+    "errors",
+    "localio",
+    "mcp",
+    "workflows",
     "memory",
     "project",
     "prompts",
@@ -36,10 +42,14 @@ MODULES = (
 )
 TESTS = (
     "cli",
+    "agents",
     "editor",
     "isolation",
+    "localio",
+    "workflows",
     "packaging",
     "memory",
+    "mcp",
     "sandbox",
     "docker",
     "prompts",
@@ -48,6 +58,7 @@ TESTS = (
     "standards",
 )
 FIXED = (
+    "LICENSE",
     "README.md",
     "pyproject.toml",
     "tools/package.py",
@@ -60,6 +71,8 @@ FIXED = (
     "docs/sandbox-test.md",
     "docs/memory.md",
     "docs/docker-tests.md",
+    "docs/architecture.md",
+    "docs/audit-rc2.md",
     ".github/workflows/docker-tests.yml",
     "packaging/engram/LICENSE",
     "packaging/engram/lock.json",
@@ -74,16 +87,38 @@ FIXED = (
 
 
 def version(root: Path) -> str:
-    """Lee la versión estable del proyecto."""
+    """Lee la versión canónica del proyecto."""
     data = tomllib.loads(
         (root / "pyproject.toml").read_text()
     )
     value = data["project"]["version"]
-    if not re.fullmatch(r"\d+\.\d+\.\d+", value):
-        raise ValueError(
-            "Use a stable X.Y.Z version."
-        )
+    if not re.fullmatch(
+        r"\d+\.\d+\.\d+(?:rc\d+)?", value
+    ):
+        raise ValueError("Use X.Y.Z or X.Y.ZrcN.")
     return value
+
+
+def native_version(value, distribution):
+    """Ordena RC antes de la versión final."""
+    match = re.fullmatch(
+        r"(\d+\.\d+\.\d+)(?:rc(\d+))?", value
+    )
+    if not match or distribution not in {
+        "debian",
+        "arch",
+    }:
+        raise ValueError(
+            "Unsupported native version."
+        )
+    base, rc = match.groups()
+    if rc is None:
+        return base
+    return (
+        f"{base}~rc.{rc}"
+        if distribution == "debian"
+        else f"{base}rc{rc}"
+    )
 
 
 def source_files(root: Path) -> dict:
@@ -181,6 +216,8 @@ def payload(root: Path, engram=None) -> dict:
         "sandbox-test.md",
         "memory.md",
         "docker-tests.md",
+        "architecture.md",
+        "audit-rc2.md",
     ):
         result[
             "usr/share/doc/pxp-harness/docs/"
@@ -189,7 +226,13 @@ def payload(root: Path, engram=None) -> dict:
     notice = (sources["packaging/NOTICE"], 0o644)
     result[
         "usr/share/doc/pxp-harness/copyright"
-    ] = notice
+    ] = (
+        sources["LICENSE"] + b"\n" + notice[0],
+        0o644,
+    )
+    result[
+        "usr/share/licenses/pxp-harness/LICENSE"
+    ] = (sources["LICENSE"], 0o644)
     result[
         "usr/share/licenses/pxp-harness/NOTICE"
     ] = notice
@@ -299,9 +342,12 @@ def deb(
         + 1023
     ) // 1024
     architecture = "amd64" if engram else "all"
+    debian_release = native_version(
+        release, "debian"
+    )
     control = (
         "Package: pxp-harness\n"
-        f"Version: {release}-1\n"
+        f"Version: {debian_release}-1\n"
         "Section: devel\nPriority: optional\n"
         f"Architecture: {architecture}\n"
         f"Maintainer: {maintainer}\n"
@@ -468,8 +514,12 @@ def build(
     (folder / "PKGBUILD").write_text(recipe)
     shutil.copy2(source, folder / source_name)
     architecture = "amd64" if engram else "all"
+    debian_release = native_version(
+        release, "debian"
+    )
     package = (
-        output / f"pxp-harness_{release}-1_"
+        output
+        / f"pxp-harness_{debian_release}-1_"
         f"{architecture}.deb"
     )
     package.write_bytes(
@@ -506,6 +556,14 @@ def build(
     }
     manifest = {
         "version": release,
+        "native_versions": {
+            "debian": native_version(
+                release, "debian"
+            ),
+            "arch": native_version(
+                release, "arch"
+            ),
+        },
         "engram": json.loads(
             (
                 root
@@ -521,7 +579,8 @@ def build(
         "sha256": hashes,
         "codex_config": "project-local .pxp only",
         "license_notice": (
-            "Upstream full notice absent"
+            "MIT: LICENSE; "
+            "Engram: packaging/engram/LICENSE"
         ),
     }
     (output / "manifest.json").write_text(

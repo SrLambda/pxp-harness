@@ -112,11 +112,12 @@ class CliTests(unittest.TestCase):
         """Comprueba el resultado esperado."""
         self.run_cli("init")
         with patch(
-            "pxp_harness.cli.shutil.which",
+            "pxp_harness.codex.shutil.which",
             return_value="/usr/bin/codex",
         ):
             with patch(
-                "pxp_harness.cli.subprocess.run",
+                "pxp_harness.codex."
+                "subprocess.run",
                 return_value=CompletedProcess(
                     [], 0
                 ),
@@ -145,7 +146,7 @@ class CliTests(unittest.TestCase):
         """Comprueba el resultado esperado."""
         self.run_cli("init")
         with patch(
-            "pxp_harness.cli.shutil.which",
+            "pxp_harness.codex.shutil.which",
             return_value=None,
         ):
             self.assertEqual(
@@ -207,11 +208,12 @@ class CliTests(unittest.TestCase):
         )
         with (
             patch(
-                "pxp_harness.cli.shutil.which",
+                "pxp_harness.codex.shutil.which",
                 return_value="codex",
             ),
             patch(
-                "pxp_harness.cli.subprocess.run",
+                "pxp_harness.codex."
+                "subprocess.run",
                 return_value=CompletedProcess(
                     [], 0
                 ),

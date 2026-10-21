@@ -1,7 +1,8 @@
-Aviso de empaquetado local de PXP Harness
+Aviso de empaquetado de PXP Harness
 
-pyproject.toml declara la licencia MIT.
-El código fuente no incluye el aviso completo de licencia y copyright.
-Este empaquetado no otorga otra licencia ni atribuye derechos de autor.
-Antes de redistribuir, debe resolverse el aviso ausente en el proyecto.
+PXP Harness se distribuye bajo la licencia MIT.
+Copyright (c) 2026 SrLambda.
+El texto completo se incluye en LICENSE y en el paquete nativo.
+Engram conserva su licencia propia en packaging/engram/LICENSE;
+el paquete nativo la incluye como ENGRAM-LICENSE cuando incorpora Engram.
 No se incluyen credenciales de Codex, prompts privados ni configuración global.

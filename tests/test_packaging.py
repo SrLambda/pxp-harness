@@ -206,7 +206,7 @@ class PackagingTests(unittest.TestCase):
             ).read_text()
         )
         self.assertEqual(
-            manifest["version"], "0.2.0"
+            manifest["version"], "0.2.0rc2"
         )
         self.assertIn("sha256", manifest)
 
@@ -300,6 +300,49 @@ class PackagingTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             module.engram_payload(ROOT, bad)
 
+    def test_project_license_is_packaged(self):
+        """Incluye la licencia propia completa."""
+        self.build()
+        expected = ROOT.joinpath(
+            "LICENSE"
+        ).read_bytes()
+        source = next(
+            self.output.glob("*-source.tar.gz")
+        )
+        with tarfile.open(source) as archive:
+            name = "pxp-harness-0.2.0rc2/LICENSE"
+            self.assertEqual(
+                archive.extractfile(name).read(),
+                expected,
+            )
+        package = next(self.output.glob("*.deb"))
+        entries = deb_members(package)
+        with tarfile.open(
+            fileobj=io.BytesIO(
+                entries["data.tar.gz"]
+            )
+        ) as archive:
+            for name in (
+                "usr/share/licenses/pxp-harness/"
+                "LICENSE",
+                "usr/share/doc/pxp-harness/"
+                "copyright",
+            ):
+                self.assertIn(
+                    expected,
+                    archive.extractfile(
+                        name
+                    ).read(),
+                )
+        manifest = json.loads(
+            (
+                self.output / "manifest.json"
+            ).read_text()
+        )
+        self.assertIn(
+            "LICENSE", manifest["license_notice"]
+        )
+
     def test_runtime_version_matches(self):
         """Mantiene sincronizada la versión."""
         spec = spec_from_file_location(
@@ -309,5 +352,44 @@ class PackagingTests(unittest.TestCase):
         module = module_from_spec(spec)
         spec.loader.exec_module(module)
         self.assertEqual(
-            module.__version__, "0.2.0"
+            module.__version__, "0.2.0rc2"
         )
+
+    def test_rc_native_ordering(self):
+        """La final debe actualizar a la RC."""
+        import shutil
+
+        spec = spec_from_file_location(
+            "builder_rc", SCRIPT
+        )
+        module = module_from_spec(spec)
+        spec.loader.exec_module(module)
+        debian = module.native_version(
+            "0.2.0rc2", "debian"
+        )
+        arch = module.native_version(
+            "0.2.0rc2", "arch"
+        )
+        self.assertEqual(debian, "0.2.0~rc.2")
+        self.assertEqual(arch, "0.2.0rc2")
+        if shutil.which("dpkg"):
+            subprocess.run(
+                [
+                    "dpkg",
+                    "--compare-versions",
+                    debian + "-1",
+                    "lt",
+                    "0.2.0-1",
+                ],
+                check=True,
+            )
+        if shutil.which("vercmp"):
+            result = subprocess.check_output(
+                [
+                    "vercmp",
+                    arch + "-1",
+                    "0.2.0-1",
+                ],
+                text=True,
+            )
+            self.assertEqual(result.strip(), "-1")

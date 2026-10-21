@@ -22,7 +22,9 @@ class MemoryTests(unittest.TestCase):
 
     def test_disabled_preserves_chat(self):
         """No añade herramientas sin activar."""
-        from pxp_harness.memory import arguments
+        from pxp_harness.codex import (
+            memory_arguments as arguments,
+        )
 
         self.assertEqual(arguments(self.root), [])
 
@@ -73,7 +75,9 @@ class MemoryTests(unittest.TestCase):
 
     def test_malformed_fails_closed(self):
         """No ignora configuración incorrecta."""
-        from pxp_harness.memory import arguments
+        from pxp_harness.codex import (
+            memory_arguments as arguments,
+        )
         from pxp_harness.project import (
             ProjectError,
         )
@@ -91,7 +95,7 @@ class MemoryTests(unittest.TestCase):
         import os
         from subprocess import CompletedProcess
 
-        import pxp_harness.cli as cli
+        import pxp_harness.codex as cli
 
         other = self.root / "second project"
         other.mkdir()
@@ -121,8 +125,8 @@ class MemoryTests(unittest.TestCase):
                 ],
                 cwd=other,
             )
-            from pxp_harness.memory import (
-                arguments,
+            from pxp_harness.codex import (
+                memory_arguments as arguments,
             )
 
             first = arguments(self.root)
@@ -184,7 +188,9 @@ class MemoryTests(unittest.TestCase):
 
     def test_symlink_database_is_rejected(self):
         """No redirige la memoria."""
-        from pxp_harness.memory import arguments
+        from pxp_harness.codex import (
+            memory_arguments as arguments,
+        )
         from pxp_harness.project import (
             ProjectError,
         )

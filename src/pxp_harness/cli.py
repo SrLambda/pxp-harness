@@ -4,17 +4,22 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 
 from . import memory
+from .agents import AgentStrategy, LaunchRequest
+from .codex import CodexStrategy
 from .editor import open_prompt
+from .mcp import (
+    AddMCP,
+    MCPServer,
+    RemoveMCP,
+    selected,
+)
 from .project import (
-    MODES,
     ProjectError,
+    get_workflow,
     initialize,
     load_config,
     mode_context,
@@ -133,12 +138,37 @@ def _parser() -> argparse.ArgumentParser:
         choices=["show", "enable", "disable"],
     )
     memories.add_argument("--executable")
+    mcps = subparsers.add_parser("mcp")
+    commands = mcps.add_subparsers(
+        dest="mcp_action", required=True
+    )
+    add = commands.add_parser("add")
+    add.add_argument("mode_id")
+    add.add_argument("name")
+    add.add_argument(
+        "--command",
+        dest="server_command",
+        required=True,
+    )
+    add.add_argument(
+        "--arg", action="append", default=[]
+    )
+    add.add_argument(
+        "--env-var", action="append", default=[]
+    )
+    remove = commands.add_parser("remove")
+    remove.add_argument("mode_id")
+    remove.add_argument("name")
+    listing = commands.add_parser("list")
+    listing.add_argument("mode_id", nargs="?")
     return parser
 
 
-def _show_modes(active_id: str) -> None:
+def _show_modes(config) -> None:
     """Muestra los modos disponibles."""
-    for mode in MODES:
+    active_id = config.get("active_mode", "plan")
+    for item in get_workflow(config).modes:
+        mode = item.as_dict()
         marker = (
             "*"
             if mode["id"] == active_id
@@ -150,7 +180,7 @@ def _show_modes(active_id: str) -> None:
         )
 
 
-def _chat(root: Path, prompt: str) -> int:
+def _chat(root, prompt, strategy=None) -> int:
     """Inicia Codex con contexto local."""
     config = load_config(root)
     active, artifact_paths = mode_context(
@@ -158,18 +188,6 @@ def _chat(root: Path, prompt: str) -> int:
     )
     settings = load_standards(root)
     base_prompt = load_prompt(root, active["id"])
-    executable = shutil.which("codex")
-    if executable is None:
-        print(
-            (
-                "Codex CLI was not found. "
-                "Install it and ensure "
-                "`codex` is on PATH, then "
-                "retry."
-            ),
-            file=sys.stderr,
-        )
-        return 1
     request = prompt or (
         "Help me continue this "
         "project in the selected "
@@ -194,47 +212,26 @@ def _chat(root: Path, prompt: str) -> int:
         "documentation language: "
         f"{settings['doc_language']}; "
         f"profile: {settings['profile']}.\n"
-        f"User request: {request}"
     )
-    command = [executable]
-    command.extend(memory.arguments(root))
-    if base_prompt is not None:
-        encoded = json.dumps(
-            str(base_prompt), ensure_ascii=False
+    servers, notes = memory.integration(root)
+    servers += selected(root, active["id"])
+    return (strategy or CodexStrategy()).launch(
+        LaunchRequest(
+            root,
+            full_prompt.rstrip(),
+            request,
+            base_prompt,
+            servers,
+            notes,
         )
-        command.extend(
-            [
-                "-c",
-                MODEL_INSTRUCTIONS
-                + "="
-                + encoded,
-            ]
-        )
-    command.append(full_prompt)
-    try:
-        completed = subprocess.run(
-            command,
-            cwd=root,
-            env={
-                **os.environ,
-                "VISUAL": "nvim",
-                "EDITOR": "nvim",
-            },
-            check=False,
-        )
-    except OSError as exc:
-        print(
-            f"Could not launch Codex CLI: {exc}",
-            file=sys.stderr,
-        )
-        return 1
-    return completed.returncode
+    )
 
 
 def main(
     argv: list[str] | None = None,
     *,
     cwd: Path | None = None,
+    strategy: AgentStrategy | None = None,
 ) -> int:
     """Ejecuta la operación solicitada."""
     args = _parser().parse_args(argv)
@@ -257,6 +254,33 @@ def main(
             )
             print("Artifacts: .pxp/artifacts/")
             return 0
+        if args.command == "mcp":
+            if args.mcp_action == "add":
+                AddMCP(
+                    args.mode_id,
+                    MCPServer(
+                        args.name,
+                        args.server_command,
+                        tuple(args.arg),
+                        tuple(args.env_var),
+                    ),
+                ).execute(root)
+            elif args.mcp_action == "remove":
+                RemoveMCP(
+                    args.mode_id, args.name
+                ).execute(root)
+            else:
+                config = load_config(root)
+                mode = args.mode_id or config.get(
+                    "active_mode", "plan"
+                )
+                declarations = {}
+                for spec in selected(root, mode):
+                    declarations[spec.name] = (
+                        spec.declaration()
+                    )
+                print(json.dumps(declarations))
+            return 0
         if args.command == "memory":
             if args.action != "show":
                 memory.configure(
@@ -274,11 +298,7 @@ def main(
                     f"Active mode: {args.mode_id}"
                 )
             else:
-                _show_modes(
-                    config.get(
-                        "active_mode", "plan"
-                    )
-                )
+                _show_modes(config)
             return 0
         if args.command == "prompt":
             if args.prompt_action in {
@@ -378,7 +398,9 @@ def main(
             )
         if args.command == "chat":
             return _chat(
-                root, " ".join(args.prompt)
+                root,
+                " ".join(args.prompt),
+                strategy,
             )
     except ProjectError as exc:
         print(str(exc), file=sys.stderr)

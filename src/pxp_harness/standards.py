@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
-import json
 import re
 import shutil
 import subprocess
 from pathlib import Path
 
+from .localio import (
+    checked,
+    read_json,
+    write_json,
+)
 from .project import ProjectError, load_config
 
 DEFAULT = {
@@ -30,19 +34,7 @@ SKIP = {
 
 def _path(root: Path) -> Path:
     """Resuelve solo archivos locales seguros."""
-    directory = root / ".pxp"
-    path = directory / "standards.json"
-    if (
-        directory.is_symlink()
-        or path.is_symlink()
-    ):
-        raise ProjectError(
-            (
-                "Standards config cannot "
-                "be a symlink."
-            )
-        )
-    return path
+    return checked(root, ".pxp/standards.json")
 
 
 def _validate(value: dict) -> None:
@@ -80,14 +72,7 @@ def _read(root: Path) -> dict:
                 "default": dict(DEFAULT)
             },
         }
-    try:
-        data = json.loads(
-            path.read_text(encoding="utf-8")
-        )
-    except (OSError, ValueError) as exc:
-        raise ProjectError(
-            f"Cannot read standards: {exc}"
-        ) from exc
+    data = read_json(root, path)
     if not isinstance(data, dict):
         raise ProjectError(
             "Invalid standards config."
@@ -162,15 +147,7 @@ def configure(
     _validate(value)
     data["profiles"][profile] = value
     data["active_profile"] = profile
-    try:
-        _path(root).write_text(
-            json.dumps(data, indent=2) + "\n",
-            encoding="utf-8",
-        )
-    except OSError as exc:
-        raise ProjectError(
-            f"Cannot save standards: {exc}"
-        ) from exc
+    write_json(root, _path(root), data)
 
 
 def python_files(root: Path) -> list[Path]:

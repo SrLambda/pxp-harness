@@ -181,3 +181,93 @@ class DockerTests(unittest.TestCase):
             "pxp-docker-",
             workflow,
         )
+
+    def test_engram_reopens_saved_store(self):
+        """Exige reinicio sin volver a guardar."""
+        util = importlib.util
+        spec = util.spec_from_file_location(
+            "docker_restart",
+            PATH.parent / "docker_case.py",
+        )
+        inner = util.module_from_spec(spec)
+        spec.loader.exec_module(inner)
+        with patch.object(
+            inner, "memory_probe"
+        ) as probe:
+            inner.engram(Path("/example"))
+        calls = probe.call_args_list
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(
+            [c.args[2:] for c in calls],
+            [
+                (True, True),
+                (False, False),
+                (False, True),
+            ],
+        )
+        self.assertEqual(
+            calls[0].args[0], calls[2].args[0]
+        )
+
+    def test_native_memory_survives_removal(self):
+        """Reabre registros tras desinstalar."""
+        import tempfile
+
+        util = importlib.util
+        spec = util.spec_from_file_location(
+            "docker_preserve",
+            PATH.parent / "docker_case.py",
+        )
+        inner = importlib.util.module_from_spec(
+            spec
+        )
+        spec.loader.exec_module(inner)
+        events = []
+        exists = Path.exists
+
+        def visible(path):
+            return (
+                False
+                if path == Path("/usr/bin/pxp")
+                else exists(path)
+            )
+
+        def probe(project, binary, save, found):
+            events.append(("memory", save, found))
+
+        def run(args, root):
+            if "--purge" in args:
+                events.append(("remove",))
+
+        with (
+            tempfile.TemporaryDirectory() as temp
+        ):
+            root = Path(temp)
+            (root / ".pxp").mkdir()
+            (root / ".pxp/config.json").touch()
+            with (
+                patch.object(inner, "run", run),
+                patch.object(
+                    inner, "memory_probe", probe
+                ),
+                patch.object(
+                    Path,
+                    "glob",
+                    return_value=iter(
+                        [Path("x")]
+                    ),
+                ),
+                patch.object(
+                    Path, "exists", visible
+                ),
+                patch.dict(inner.os.environ),
+            ):
+                inner.native(root, "debian")
+        self.assertEqual(
+            events,
+            [
+                ("memory", True, True),
+                ("remove",),
+                ("memory", False, True),
+            ],
+        )

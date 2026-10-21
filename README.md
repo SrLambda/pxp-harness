@@ -544,15 +544,15 @@ por extracción no sustituye una instalación real en
 una VM Debian/Arch limpia. No se ha creado una imagen
 de VM, repositorio APT/Pacman, firma ni publicación AUR.
 
-**Aviso de redistribución:** los metadatos originales
-indican MIT, pero el proyecto no trae su aviso completo
-de licencia/copyright. `packaging/NOTICE` registra esa
-limitación sin inventar autoría ni conceder derechos.
+**Licencia:** PXP Harness se distribuye bajo MIT;
+consulta [LICENSE](LICENSE), copyright 2026 SrLambda.
+Los paquetes incluyen este texto y conservan la licencia
+independiente de Engram. `packaging/NOTICE` describe
+el contenido distribuido.
 El maintainer Debian predeterminado usa el dominio
 reservado `example.invalid` para builds locales; usa
 `--maintainer 'Nombre <correo-publico-verificado>'`
-con datos reales solo si decides redistribuir y tras
-resolver el aviso ausente.
+con datos reales solo si decides redistribuir.
 
 Referencias técnicas:
 [política Python Debian](https://www.debian.org/doc/packaging-manuals/python-policy/),
@@ -569,7 +569,7 @@ PYTHONPATH=src python -m unittest discover -s tests -v
 
 El repositorio configura Ruff a 50 columnas. La suite
 comprueba también cada línea Python en `src/` y
-`tests/`, sin excepciones por URL. La integración
+`tests/` y `tools/`, sin excepciones por URL. La integración
 continua repite lint, formato y pruebas con Python
 3.10 y 3.14. Comprueba el resultado de CI: definir el
 workflow no demuestra que se haya ejecutado.
@@ -614,3 +614,16 @@ cada unittest en un contenedor nuevo, sin red ni mounts
 del host. Incluye escenarios de wheel y Engram; `full`
 añade instalación y eliminación Debian/Arch.
 Consulta [límites, requisitos e informes](docs/docker-tests.md).
+
+## Modos y herramientas extensibles
+
+Consulta [arquitectura y configuración](docs/architecture.md)
+para declarar otro workflow, crear modos con `ModeBuilder`,
+inyectar una estrategia de agente y usar `pxp mcp add`,
+`list` y `remove` por modo. Codex mantiene su TUI nativa.
+Los MCP heredados globalmente no quedan aislados por PXP.
+
+El candidato de fuente es `0.2.0rc2`; consulta
+[correcciones de auditoría y migración](docs/audit-rc2.md)
+antes de actualizar una VM que tenga los paquetes rc.1.
+La licencia MIT propia se incluye en fuente y paquetes.
